@@ -4,13 +4,16 @@ const mongoose = require("mongoose");
 const app = express();
 
 //
+require("dotenv").config();
+
+//
 app.set("view engine", "ejs");
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("Public"));
 
 //
 mongoose.connect(
-  "mongodb+srv://Esam:esam3799@todoapp.co6kp.mongodb.net/<dbname>?retryWrites=true&w=majority",
+  `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@${process.env.DB_PROJECT_NAME}.co6kp.mongodb.net/<${process.env.DB_NAME}>?retryWrites=true&w=majority`,
   {
     useNewUrlParser: true,
   },
