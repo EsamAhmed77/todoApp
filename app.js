@@ -1,127 +1,76 @@
+require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const app = express();
 
 //
-require("dotenv").config();
-
-//
 app.set("view engine", "ejs");
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({extended: true}));
 app.use(express.static("Public"));
 
 //
 mongoose.connect(
-  `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@${process.env.DB_PROJECT_NAME}.co6kp.mongodb.net/<${process.env.DB_NAME}>?retryWrites=true&w=majority`,
-  {
-    useNewUrlParser: true,
-  },
-  { useFindAndModify: false }
-);
+    `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@${process.env.DB_PROJECT_NAME}/${process.env.DB_NAME}`,
+    {
+        useNewUrlParser: true,
+        useUnifiedTopology: true
+    }
+).then(() => console.log("Connected successfully"))
+    .catch((r) => console.log("Error from mongo >>", r))
 
 //Schema
 const itemSchema = {
-  name: String,
-};
-
-const listSchema = {
-  name: String,
-  tasks: [itemSchema],
+    name: String,
 };
 
 //Model
 const Item = mongoose.model("Item", itemSchema);
 
-const List = mongoose.model("List", listSchema);
+app.get("/", (req, res) => {
+    res.status(200).send({app: "dashboard-app", version: "0.1.0"});
+})
 
 // app get request
-app.get("/", (req, res) => {
-  Item.find({}, (err, result) => {
-    if (!err) {
-      res.render("lists", { listTitle: "Today", listItems: result });
+app.get("/todo", async (req, res) => {
+    try {
+        const todo = await Item.find({});
+        res.status(200).send({status: 200, todo, success: true});
+    } catch (e) {
+        res.status(500).send({status: 500, ...e})
     }
-  });
 });
 
-app.get("/:urlListName", (req, res) => {
-  const urlListName = req.params.urlListName;
+app.post("/todo", (req, res) => {
+    const newItem = req.body.item;
 
-  List.findOne({ name: urlListName }, (err, foundList) => {
-    if (!err) {
-      if (foundList) {
-        res.render("lists", {
-          listTitle: foundList.name,
-          listItems: foundList.tasks,
-        });
-      } else {
-        const listName = new List({
-          name: urlListName,
-          tasks: [],
-        });
-
-        listName.save();
-        res.redirect("/" + urlListName);
-      }
-    }
-  });
-});
-
-//app post request
-app.post("/", (req, res) => {
-  const itemName = req.body.newItem;
-  const list = req.body.listAddBtn;
-
-  const item = new Item({
-    name: itemName,
-  });
-
-  if (list === "Today") {
-    if (itemName.length !== 0) {
-      item.save();
-      res.redirect("/");
-    } else {
-      console.log("you need to enter a name");
-      res.redirect("/");
-    }
-  } else {
-    if (itemName.length === 0) {
-      console.log("you need to enter a name");
-    } else {
-      List.findOne({ name: list }, (err, result) => {
-        if (!err) {
-          result.tasks.push(item);
-          result.save();
-          res.redirect("/" + list);
-        }
-      });
-    }
-  }
-});
-
-app.post("/delete", (req, res) => {
-  const checkedItemName = req.body.checkbox;
-  const listName = req.body.listName;
-
-  if (listName === "Today") {
-    Item.findByIdAndRemove(checkedItemName, (err) => {
-      if (!err) res.redirect("/");
+    const item = new Item({
+        name: newItem,
     });
-  } else {
-    List.findOneAndUpdate(
-      { name: listName },
-      { $pull: { tasks: { _id: checkedItemName } } },
-      (err, result) => {
-        if (!err) {
-          console.log(err);
+
+    item.save(((err, doc) => {
+        if (err) {
+            res.status(500).send({status: 500, message: err, success: false});
         }
-      }
-    );
-    res.redirect("/" + listName);
-  }
+        res.status(200).send({status: 200, item, success: true});
+    }))
+
 });
+
+app.delete("/todo/:id", (req, res) => {
+    const item = req.params.id;
+
+    Item.findByIdAndRemove(item, {new: true, useFindAndModify: false}, (err) => {
+        if (err) return res.status(500).send();
+        res.status(200).send({ status: 200, message: "Deleted successfully", success: true });
+    });
+});
+
+app.use((req, res, next) => {
+    res.status(404).send({status: 404, message: "required path not found", success: false});
+})
 
 //
-app.listen(8088, () => {
-  console.log("App is on port 8088");
+app.listen(process.env.PORT, () => {
+    console.log("App is on port 8088");
 });
